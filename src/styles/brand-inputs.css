@@ -1,0 +1,18 @@
+input:not([type="hidden"]):not([type="checkbox"]):not(
+    [type="radio"]
+  ):not([type="file"]):not(.sr-only),
+textarea {
+  border-color: #d4dfcc;
+  border-radius: 12px;
+  color: #24412b;
+  accent-color: #9bbc53;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+
+input::placeholder,
+textarea::placeholder {
+  color: #7b8873;
+}
