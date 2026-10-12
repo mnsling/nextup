@@ -676,9 +676,8 @@ export default function App() {
       !sessionEnded(item, now) &&
       getSessionStatus(item, now) === "open" &&
       (filter === "All" || item.skill_level === filter) &&
-      `${item.title} ${item.location} ${
-        clubs.find((c) => c.id === item.club_id)?.name || ""
-      }`
+      `${item.title} ${item.location} ${clubs.find((c) => c.id === item.club_id)?.name || ""
+        }`
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
@@ -841,9 +840,10 @@ export default function App() {
         />
       )}
 
+
+
       <MobileMenu menu={menu} setMenu={setMenu} go={go} />
       <Toast message={message} setMessage={setMessage} />
-
       <ModalRoot
         modal={modal}
         setModal={setModal}

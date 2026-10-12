@@ -1,3 +1,4 @@
+
 import {
   ArrowUpRight,
   Plus,
@@ -22,6 +23,12 @@ export function DiscoverPage({
   setSession,
   nav,
 }) {
+  const hostGame = () => {
+    if (requireAuth()) {
+      setModal("createSession");
+    }
+  };
+
   return (
     <>
       <div className="greeting">
@@ -34,6 +41,7 @@ export function DiscoverPage({
             <h1>
               Find your <em>next game.</em>
             </h1>
+
             <p>
               Discover open plays, meet your people,
               and know when you’re up.
@@ -90,10 +98,10 @@ export function DiscoverPage({
             src="/assets/hero.jpg"
             alt="Pickleball players on court"
             onError={(event) => {
-              event.currentTarget.style.display =
-                "none";
+              event.currentTarget.style.display = "none";
             }}
           />
+
           <span className="art-scribble">
             NEXT
             <br />
@@ -106,39 +114,22 @@ export function DiscoverPage({
         </div>
       </div>
 
-      <section
-        id="sessions"
-        className="listing"
-      >
+      <section id="sessions" className="listing">
         <div className="section-top">
           <div>
             <span className="eyebrow">
               GET OUT AND PLAY
             </span>
 
-            <h2>
-              Open plays near you{" "}
-              <span className="count">
-                {filtered.length
-                  .toString()
-                  .padStart(2, "0")}
-              </span>
-            </h2>
+            <h2>Open plays near you</h2>
           </div>
 
           <button
-            className="text-link"
-            onClick={() => {
-              if (requireAuth()) {
-                setModal("createSession");
-              }
-            }}
+            className="text-link desktop-create"
+            onClick={hostGame}
           >
             Host a Session
-            <Plus
-              size={18}
-              aria-hidden="true"
-            />
+            <Plus size={18} aria-hidden="true" />
           </button>
         </div>
 
@@ -146,6 +137,7 @@ export function DiscoverPage({
           <div className="filters">
             <label className="searchbox">
               <Search size={19} />
+
               <input
                 value={search}
                 onChange={(event) =>
@@ -165,9 +157,7 @@ export function DiscoverPage({
               ].map((option) => (
                 <button
                   className={
-                    filter === option
-                      ? "selected"
-                      : ""
+                    filter === option ? "selected" : ""
                   }
                   onClick={() => setFilter(option)}
                   key={option}
@@ -185,8 +175,7 @@ export function DiscoverPage({
               key={item.id}
               s={item}
               club={clubs.find(
-                (club) =>
-                  club.id === item.club_id,
+                (club) => club.id === item.club_id
               )}
               fmt={fmt}
               open={() => {
@@ -197,11 +186,23 @@ export function DiscoverPage({
           ))}
 
           {!filtered.length && (
-            <p className="empty col-span-full flex min-h-[240px] items-center justify-center rounded-2xl border border-dashed border-[#d9e3d2] bg-white/40 px-6 text-center mt-[14px]">
-              {totalSessions
-                ? "No games match your search. Try another filter."
-                : "No open plays yet. Host a friendly game or club session to get started."}
-            </p>
+            <div className="empty-state">
+              <p className="empty">
+                {totalSessions
+                  ? "No games match your search. Try another filter."
+                  : "No open plays yet. Host a friendly game or club session to get started."}
+              </p>
+
+              {!totalSessions && (
+                <button
+                  className="mobile-empty-host"
+                  onClick={hostGame}
+                >
+                  Host a game
+                  <Plus size={18} />
+                </button>
+              )}
+            </div>
           )}
         </div>
       </section>
@@ -211,7 +212,9 @@ export function DiscoverPage({
           <span className="eyebrow">
             FIND YOUR PEOPLE
           </span>
+
           <h2>Better together.</h2>
+
           <p className="mt-[4px]">
             Join a club to hear about their next game.
           </p>
@@ -235,9 +238,7 @@ export function DiscoverPage({
               }}
             >
               <span
-                className={
-                  "mini-avatar avatar-" + index
-                }
+                className={"mini-avatar avatar-" + index}
               >
                 {club.name
                   .split(" ")
@@ -256,6 +257,53 @@ export function DiscoverPage({
           ))}
         </div>
       </section>
+
+      <style>{`
+        .empty-state {
+          grid-column: 1 / -1;
+          display: flex;
+          align-items: center;
+          flex-direction: column;
+          gap: 0;
+          margin-top: 14px;
+        }
+
+        .empty-state .empty {
+          width: 100%;
+          margin: 0;
+        }
+
+        .mobile-empty-host {
+          display: none;
+        }
+
+        @media (max-width: 760px) {
+          .desktop-create {
+            display: none !important;
+          }
+
+          .mobile-empty-host {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            gap: 9px;
+            align-self: center;
+            margin-top: 18px;
+            padding: 13px 22px;
+            border: 0;
+            border-radius: 10px;
+            background: #dcfa53;
+            color: #171e19;
+            font-size: 13px;
+            font-weight: 800;
+            box-shadow: 0 4px 12px #24312612;
+          }
+
+          .mobile-empty-host:hover {
+            background: #c9ed37;
+          }
+        }
+      `}</style>
     </>
   );
 }

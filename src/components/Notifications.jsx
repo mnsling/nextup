@@ -1,3 +1,4 @@
+
 import {
   useEffect,
   useRef,
@@ -11,10 +12,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
-export function Notifications({
-  auth,
-  onOpenSession,
-}) {
+export function Notifications({ auth, onOpenSession }) {
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -105,7 +103,6 @@ export function Notifications({
 
     return () => {
       alive = false;
-
       clearInterval(timer);
       window.removeEventListener("focus", load);
       supabase.removeChannel(channel);
@@ -128,21 +125,12 @@ export function Notifications({
       }
     }
 
-    document.addEventListener(
-      "pointerdown",
-      outside,
-    );
+    document.addEventListener("pointerdown", outside);
     document.addEventListener("keydown", escape);
 
     return () => {
-      document.removeEventListener(
-        "pointerdown",
-        outside,
-      );
-      document.removeEventListener(
-        "keydown",
-        escape,
-      );
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
     };
   }, [open]);
 
@@ -179,23 +167,20 @@ export function Notifications({
   }
 
   return (
-    <div
-      ref={root}
-      className="relative"
-    >
+    <div ref={root} className="notification-root">
       <button
         type="button"
         aria-label={`Notifications, ${unread} unread`}
         aria-expanded={open}
-        onClick={() =>
-          setOpen((value) => !value)
-        }
-        className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-[#dce3d5] bg-white text-[#171e19] transition hover:bg-[#eff6d9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8fa747]"
+        onClick={() => setOpen((value) => !value)}
+        className={`notification-trigger ${
+          open ? "notification-trigger-active" : ""
+        }`}
       >
         <Bell size={19} />
 
         {unread > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#dcfa53] px-1 text-[10px] font-bold text-[#171e19]">
+          <span className="notification-badge">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
@@ -204,18 +189,16 @@ export function Notifications({
       {open && (
         <section
           aria-label="Notifications"
-          className="fixed left-3 right-3 top-20 z-50 overflow-hidden rounded-2xl border border-[#dce3d5] bg-white shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-96"
+          className="notification-panel"
         >
-          <div className="flex items-center justify-between gap-3 border-b border-[#e2e8db] p-4">
-            <h3 className="font-bold text-[#171e19]">
-              Notifications
-            </h3>
+          <div className="notification-heading">
+            <h3>Notifications</h3>
 
             <button
               type="button"
               onClick={() => read(null)}
               disabled={busy || !unread}
-              className="flex items-center gap-1 text-xs font-semibold text-[#52634c] disabled:opacity-40"
+              className="notification-mark-read"
             >
               <CheckCheck size={15} />
               Mark all read
@@ -223,43 +206,32 @@ export function Notifications({
           </div>
 
           {error && (
-            <p
-              role="alert"
-              className="p-4 text-sm text-red-700"
-            >
+            <p role="alert" className="notification-error">
               {error}
             </p>
           )}
 
-          <div className="max-h-96 overflow-y-auto overscroll-contain">
+          <div className="notification-list">
             {loading && (
-              <p
-                role="status"
-                className="p-5 text-sm text-[#687167]"
-              >
+              <p role="status" className="notification-loading">
                 Loading notifications…
               </p>
             )}
 
-            {!loading &&
-              !error &&
-              !items.length && (
-                <div className="p-8 text-center">
-                  <Bell
-                    size={25}
-                    className="mx-auto mb-3 text-[#8a967f]"
-                  />
+            {!loading && !error && !items.length && (
+              <div className="notification-empty">
+                <Bell size={25} />
 
-                  <p className="text-sm font-bold text-[#171e19]">
-                    You're all caught up
-                  </p>
+                <p className="notification-empty-title">
+                  You're all caught up
+                </p>
 
-                  <p className="mt-2 text-xs text-[#687167]">
-                    Club sessions and payment updates
-                    will appear here.
-                  </p>
-                </div>
-              )}
+                <p className="notification-empty-description">
+                  Club sessions and payment updates
+                  will appear here.
+                </p>
+              </div>
+            )}
 
             {items.map((item) => {
               const isPayment =
@@ -271,13 +243,13 @@ export function Notifications({
                   key={item.id}
                   disabled={busy}
                   onClick={() => read(item)}
-                  className={`flex w-full items-start gap-3 border-b border-[#e2e8db] p-4 text-left transition hover:bg-[#eff6d9] disabled:opacity-50 ${
+                  className={`notification-item ${
                     item.read_at
-                      ? "bg-white"
-                      : "bg-[#f8faf3]"
+                      ? "notification-item-read"
+                      : "notification-item-unread"
                   }`}
                 >
-                  <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#171e19] text-[#dcfa53]">
+                  <span className="notification-item-icon">
                     {isPayment ? (
                       <CreditCard size={16} />
                     ) : (
@@ -285,14 +257,14 @@ export function Notifications({
                     )}
                   </span>
 
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-bold text-[#171e19]">
+                  <span className="notification-item-content">
+                    <span className="notification-item-title">
                       {isPayment
                         ? "Payment awaiting verification"
                         : item.club_name}
                     </span>
 
-                    <span className="mt-1 block text-sm text-[#52634c]">
+                    <span className="notification-item-message">
                       {isPayment
                         ? `${
                             item.actor_name || "A player"
@@ -302,7 +274,7 @@ export function Notifications({
                         : `New session: ${item.session_title}`}
                     </span>
 
-                    <span className="mt-2 block text-xs text-[#687167]">
+                    <span className="notification-item-date">
                       {new Date(
                         item.created_at,
                       ).toLocaleString("en-PH", {
@@ -318,12 +290,12 @@ export function Notifications({
                   {!item.read_at ? (
                     <span
                       aria-label="Unread"
-                      className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#8fa747]"
+                      className="notification-unread-dot"
                     />
                   ) : (
                     <ArrowUpRight
                       size={15}
-                      className="mt-1 shrink-0 text-[#687167]"
+                      className="notification-item-arrow"
                     />
                   )}
                 </button>

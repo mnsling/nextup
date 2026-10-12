@@ -1,8 +1,8 @@
+
 import {
   ArrowUpRight,
   CalendarDays,
   CircleUserRound,
-  MapPin,
   Users,
   Plus,
   Search,
@@ -41,7 +41,6 @@ export function AppShell({
           tabIndex="0"
         >
           <span className="brand-icon">
-            N<span>●</span>
           </span>
 
           <span>
@@ -56,28 +55,32 @@ export function AppShell({
             className={page === "discover" ? "active" : ""}
             onClick={() => go("discover")}
           >
-            <Search size={19} /> Discover
+            <Search size={19} />
+            Discover
           </button>
 
           <button
             className={page === "clubs" ? "active" : ""}
             onClick={() => go("clubs")}
           >
-            <Users size={19} /> Clubs
+            <Users size={19} />
+            Clubs
           </button>
 
           <button
             className={page === "my-games" ? "active" : ""}
             onClick={() => go("my-games")}
           >
-            <CalendarDays size={19} /> My games
+            <CalendarDays size={19} />
+            My games
           </button>
 
           <button
             className={page === "profile" ? "active" : ""}
             onClick={() => go("profile")}
           >
-            <CircleUserRound size={19} /> Profile
+            <CircleUserRound size={19} />
+            Profile
           </button>
         </nav>
 
@@ -89,7 +92,8 @@ export function AppShell({
               if (requireAuth()) setModal("createClub");
             }}
           >
-            <Plus size={19} /> Create club
+            <Plus size={19} />
+            Create club
           </button>
 
           <button
@@ -97,13 +101,16 @@ export function AppShell({
               if (requireAuth()) setModal("createSession");
             }}
           >
-            <Play size={19} /> Host a session
+            <Play size={19} />
+            Host a session
           </button>
         </nav>
 
         <div className="sidebar-bottom">
           <div className="side-promo">
-            <span className="tiny-label">FOR ORGANIZERS</span>
+            <span className="tiny-label">
+              FOR ORGANIZERS
+            </span>
 
             <h3>
               More play.
@@ -112,13 +119,16 @@ export function AppShell({
             </h3>
 
             <button onClick={() => go("pricing")}>
-              Explore plans <ArrowUpRight size={16} />
+              Explore plans
+              <ArrowUpRight size={16} />
             </button>
           </div>
 
           <button
             className="account"
-            onClick={() => (auth ? go("profile") : setModal("auth"))}
+            onClick={() =>
+              auth ? go("profile") : setModal("auth")
+            }
           >
             <span className="avatar">
               {photo ? (
@@ -131,7 +141,9 @@ export function AppShell({
             <span>
               <strong>{displayName}</strong>
               <small>
-                {auth ? "View your profile" : "Sign in to save games"}
+                {auth
+                  ? "View your profile"
+                  : "Sign in to save games"}
               </small>
             </span>
 
@@ -146,13 +158,10 @@ export function AppShell({
             className="mobile-menu"
             onClick={() => setMenu(true)}
             aria-label="Open menu"
+            type="button"
           >
-            <Menu />
+            <Menu size={20} strokeWidth={2} />
           </button>
-
-          <span className="top-location">
-            <MapPin size={16} /> Davao City, Philippines
-          </span>
 
           <div className="top-actions">
             <Notifications
@@ -169,11 +178,91 @@ export function AppShell({
             NEXTUP<span className="brand-dot">.</span>
           </strong>
 
-          <span>Find your next game. Davao City, Philippines.</span>
-
-          <button onClick={() => go("pricing")}>Plans</button>
+          <span>
+            Davao City, Philippines.
+          </span>
         </footer>
       </div>
+
+      <style>{`
+        /* Desktop top navigation */
+        .topbar {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          width: 100%;
+        }
+
+        .top-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          margin-left: auto;
+        }
+
+        .top-actions > * {
+          flex-shrink: 0;
+        }
+
+        /* Mobile menu button */
+        .mobile-menu {
+          display: none;
+        }
+
+        @media (max-width: 760px) {
+          .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+          }
+
+          .mobile-menu {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+
+            width: 40px;
+            height: 40px;
+            padding: 0;
+
+            border: 1px solid #e0e5da;
+            border-radius: 12px;
+
+            background: #ffffff;
+            color: #243126;
+
+            cursor: pointer;
+            transition:
+              background 160ms ease,
+              border-color 160ms ease,
+              transform 160ms ease;
+          }
+
+          .mobile-menu:hover {
+            background: #f5f7ef;
+            border-color: #cbd5c1;
+          }
+
+          .mobile-menu:active {
+            transform: scale(0.96);
+          }
+
+          .mobile-menu:focus-visible {
+            outline: 2px solid #a8ca43;
+            outline-offset: 3px;
+          }
+
+          .top-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            flex-shrink: 0;
+            margin-left: auto;
+          }
+        }
+      `}</style>
     </div>
   );
 }
