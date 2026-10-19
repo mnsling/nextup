@@ -627,6 +627,12 @@ main {
   margin: 8px 0;
 }
 
+.session-distance {
+  color: #446825;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .card-bottom {
   margin-top: auto;
   border-top: 1px solid #eef0e9;
@@ -2734,3 +2740,53 @@ footer button {
   }
 }
 
+
+/* ========================================
+   NEXTUP — Smooth modal opening transition
+   ======================================== */
+
+/* Fade in the backdrop */
+.modal-back {
+  animation: nextup-backdrop-in 260ms ease-out both;
+  will-change: opacity;
+}
+
+/* Slide the modal upward while fading and scaling it in */
+.modal-back > .modal {
+  animation: nextup-modal-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center center;
+  will-change: opacity, transform;
+}
+
+@keyframes nextup-backdrop-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+
+  to {
+    opacity: 1;
+    backdrop-filter: blur(5px);
+  }
+}
+
+@keyframes nextup-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .modal-back,
+  .modal-back > .modal {
+    animation: none;
+    will-change: auto;
+  }
+}

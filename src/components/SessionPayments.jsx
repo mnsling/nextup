@@ -1,9 +1,10 @@
+
 import { useEffect, useState } from "react";
 import {
   X,
   Upload,
   Check,
-  CreditCard,
+  Eye,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { SessionQrUpload } from "./SessionQrUpload";
@@ -11,9 +12,7 @@ import { SessionQrUpload } from "./SessionQrUpload";
 async function uploadImage(bucket, userId, file) {
   if (
     !file?.size ||
-    !["image/jpeg", "image/png", "image/webp"].includes(
-      file.type,
-    )
+    !["image/jpeg", "image/png", "image/webp"].includes(file.type)
   ) {
     throw new Error("Choose a JPG, PNG, or WebP image.");
   }
@@ -22,13 +21,12 @@ async function uploadImage(bucket, userId, file) {
     throw new Error("Image must be under 5 MB.");
   }
 
-  const path = `${userId}/${crypto.randomUUID()}.${
-    file.type.split("/")[1]
-  }`;
+  const extension = file.type.split("/")[1];
+  const path = `${userId}/${crypto.randomUUID()}.${extension}`;
 
   const { error } = await supabase.storage
     .from(bucket)
-    .upload(path, file);
+    .upload(path, file, { contentType: file.type });
 
   if (error) throw error;
 
@@ -43,6 +41,21 @@ export function SessionPaymentModal({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [qrZoomOpen, setQrZoomOpen] = useState(false);
+
+  useEffect(() => {
+    if (!qrZoomOpen) return;
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setQrZoomOpen(false);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [qrZoomOpen]);
 
   const qr =
     game.gcash_qr_path &&
@@ -56,37 +69,73 @@ export function SessionPaymentModal({
     if (busy) return;
 
     const form = new FormData(event.currentTarget);
+    const file = form.get("receipt");
+    const reference = String(form.get("reference") || "").trim();
 
     setBusy(true);
     setError("");
 
     try {
+      // Use the actual authenticated account, not the session host's ID.
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+
+      if (!user) {
+        throw new Error("Please sign in again before submitting payment.");
+      }
+
       const path = await uploadImage(
         "session-receipts",
-        auth.id,
-        form.get("receipt"),
+        user.id,
+        file,
       );
 
-      const { error } = await supabase.rpc(
+      let { error: submitError } = await supabase.rpc(
         "submit_session_payment",
         {
           p_session_id: game.id,
-          p_reference: String(
-            form.get("reference"),
-          ).trim(),
+          p_reference: reference,
           p_receipt_path: path,
         },
       );
 
-      if (error) throw error;
+      // If the removal record is stale, attempt the normal rejoin
+      // flow and retry once. Database checks still apply.
+      if (
+        submitError &&
+        /removed from this session|you were removed/i.test(
+          submitError.message || "",
+        )
+      ) {
+        const { error: rejoinError } = await supabase.rpc(
+          "join_session",
+          { p_session_id: game.id },
+        );
 
-      flash(
-        "Receipt submitted. Your slot awaits host approval.",
-      );
+        if (rejoinError) throw rejoinError;
 
+        const retry = await supabase.rpc(
+          "submit_session_payment",
+          {
+            p_session_id: game.id,
+            p_reference: reference,
+            p_receipt_path: path,
+          },
+        );
+
+        submitError = retry.error;
+      }
+
+      if (submitError) throw submitError;
+
+      flash("Receipt submitted. Your slot awaits host approval.");
       onClose();
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "Could not submit payment.");
     } finally {
       setBusy(false);
     }
@@ -110,9 +159,7 @@ export function SessionPaymentModal({
           <X size={20} />
         </button>
 
-        <span className="eyebrow">
-          CONFIRM YOUR PLACE
-        </span>
+        <span className="eyebrow">CONFIRM YOUR PLACE</span>
 
         <h2>Pay the session host</h2>
 
@@ -124,11 +171,22 @@ export function SessionPaymentModal({
         {qr ? (
           <>
             <div className="my-4 rounded-2xl border border-[#dce3d5] bg-white p-4">
-              <img
-                src={qr}
-                alt="Host GCash payment QR"
-                className="mx-auto h-56 w-56 object-contain"
-              />
+              <button
+                type="button"
+                className="mx-auto block cursor-zoom-in rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#a8ca43]"
+                onClick={() => setQrZoomOpen(true)}
+                aria-label="Enlarge host GCash QR code"
+              >
+                <img
+                  src={qr}
+                  alt="Host GCash payment QR. Click to enlarge."
+                  className="mx-auto h-56 w-56 object-contain"
+                />
+              </button>
+
+              <p className="mt-2 text-center text-xs text-[#687167]">
+                Tap or click the QR code to enlarge it.
+              </p>
             </div>
 
             <p className="fine">
@@ -138,13 +196,9 @@ export function SessionPaymentModal({
               Submitting a receipt does not reserve a slot.
             </p>
 
-            <form
-              className="form"
-              onSubmit={submit}
-            >
+            <form className="form" onSubmit={submit}>
               <label>
                 GCash reference number
-
                 <input
                   name="reference"
                   required
@@ -156,7 +210,6 @@ export function SessionPaymentModal({
 
               <label>
                 Payment receipt
-
                 <input
                   name="receipt"
                   type="file"
@@ -171,10 +224,7 @@ export function SessionPaymentModal({
                 disabled={busy}
               >
                 <Upload size={17} />
-
-                {busy
-                  ? "Submitting…"
-                  : "Submit for verification"}
+                {busy ? "Submitting…" : "Submit for verification"}
               </button>
             </form>
           </>
@@ -194,6 +244,50 @@ export function SessionPaymentModal({
           </p>
         )}
       </section>
+
+      {qrZoomOpen && (
+        <div
+          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setQrZoomOpen(false);
+            }
+          }}
+        >
+          <section
+            className="relative w-full max-w-xl rounded-2xl bg-white p-4 shadow-2xl sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Enlarged host GCash payment QR code"
+          >
+            <button
+              type="button"
+              className="absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-xl border border-[#dce3d5] bg-white text-[#243126] transition hover:bg-[#f5f7ef]"
+              onClick={() => setQrZoomOpen(false)}
+              aria-label="Close enlarged QR code"
+            >
+              <X size={20} />
+            </button>
+
+            <p className="mb-4 pr-12 text-sm font-semibold text-[#243126]">
+              Scan to pay the session host
+            </p>
+
+            <div className="flex max-h-[75vh] items-center justify-center overflow-auto rounded-xl bg-white p-2">
+              <img
+                src={qr}
+                alt="Enlarged host GCash payment QR code"
+                className="max-h-[70vh] w-full max-w-[480px] object-contain"
+              />
+            </div>
+
+            <p className="mt-3 text-center text-xs text-[#687167]">
+              Check the recipient in GCash before sending.
+            </p>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -228,44 +322,58 @@ export function SessionPaymentPanel({
       const current = ++request;
 
       try {
-        const { data, error } = await supabase
+        const { data, error: paymentsError } = await supabase
           .from("session_payments")
           .select("*")
           .eq("session_id", game.id)
           .order("created_at");
 
-        if (error) throw error;
+        if (paymentsError) throw paymentsError;
 
-        let labels = {};
-
+        const paymentRows = data || [];
         const ids = [
           ...new Set(
-            (data || []).map((payment) => payment.user_id),
+            paymentRows
+              .map((payment) => payment.user_id)
+              .filter(Boolean),
           ),
         ];
 
+        const labels = {};
+
         if (host && ids.length) {
-          const result = await supabase
+          // The payer name must come from the profile whose ID matches
+          // session_payments.user_id. Do not substitute the host's name
+          // from a notification that may not identify the payer.
+          const { data: profiles, error: profilesError } = await supabase
             .from("profiles")
-            .select("id,full_name")
+            .select("id, full_name")
             .in("id", ids);
 
-          labels = Object.fromEntries(
-            (result.data || []).map((profile) => [
-              profile.id,
-              profile.full_name,
-            ]),
-          );
+          if (profilesError) {
+            console.warn(
+              "Could not load player profiles:",
+              profilesError.message,
+            );
+          } else {
+            for (const profile of profiles || []) {
+              const name = profile.full_name?.trim();
+
+              if (name) {
+                labels[profile.id] = name;
+              }
+            }
+          }
         }
 
         if (alive && current === request) {
-          setPayments(data || []);
+          setPayments(paymentRows);
           setNames(labels);
           setError("");
         }
       } catch (e) {
         if (alive && current === request) {
-          setError(e.message);
+          setError(e.message || "Could not load payments.");
         }
       } finally {
         if (alive && current === request) {
@@ -294,7 +402,7 @@ export function SessionPaymentPanel({
       await action();
       setVersion((value) => value + 1);
     } catch (e) {
-      setError(e.message);
+      setError(e.message || "Something went wrong.");
     } finally {
       setBusy(false);
     }
@@ -311,7 +419,7 @@ export function SessionPaymentPanel({
     if (note === null) return;
 
     await run(async () => {
-      const { error } = await supabase.rpc(
+      const { error: reviewError } = await supabase.rpc(
         "review_session_payment",
         {
           p_id: payment.id,
@@ -320,7 +428,7 @@ export function SessionPaymentPanel({
         },
       );
 
-      if (error) throw error;
+      if (reviewError) throw reviewError;
 
       await onApproved?.();
 
@@ -363,20 +471,16 @@ export function SessionPaymentPanel({
 
             <img
               src={receipt}
-              alt="Submitted GCash receipt"
+              alt="Submitted payment receipt"
               className="mt-4 max-h-[70vh] w-full object-contain"
             />
           </section>
         </div>
       )}
 
-      <span className="eyebrow">
-        GCASH PAYMENTS
-      </span>
+      <span className="eyebrow">GCASH PAYMENTS</span>
 
-      <h2>
-        {host ? "Verify player payments" : "Your payment"}
-      </h2>
+      <h2>{host ? "Verify player payments" : "Your payment"}</h2>
 
       {host && (
         <SessionQrUpload
@@ -392,10 +496,7 @@ export function SessionPaymentPanel({
       )}
 
       {error && (
-        <p
-          role="alert"
-          className="mt-3 text-sm text-red-700"
-        >
+        <p role="alert" className="mt-3 text-sm text-red-700">
           {error}
         </p>
       )}
@@ -426,9 +527,8 @@ export function SessionPaymentPanel({
 
       {!host && !own && !loading && (
         <p className="muted">
-          Submit a receipt using Join this session. The
-          host verifies your payment before adding you
-          to the lineup.
+          Submit a receipt using Join this session. The host verifies
+          your payment before adding you to the lineup.
         </p>
       )}
 
@@ -437,88 +537,96 @@ export function SessionPaymentPanel({
           {payments.map((payment) => (
             <article
               key={payment.id}
-              className="rounded-xl border border-[#dce3d5] p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#dce3d5] bg-white px-4 py-3"
             >
-              <div className="flex flex-wrap justify-between gap-2">
-                <strong>
-                  {names[payment.user_id] || "Player"}
+              <div className="min-w-0 flex-1">
+                <strong className="block truncate text-sm font-semibold text-[#17231a]">
+                  {names[payment.user_id] || "Name unavailable"}
                 </strong>
 
-                <span className="rounded-full bg-[#edf4df] px-3 py-1 text-xs font-bold capitalize text-[#24412b]">
-                  {payment.status}
-                </span>
+                <p className="mt-1 text-sm text-[#687167]">
+                  ₱{Number(payment.amount || 0).toLocaleString("en-PH")}
+                  {" · Ref No: "}
+                  {payment.reference || "—"}
+                </p>
+
+                {payment.note && (
+                  <p className="mt-1 text-xs text-[#687167]">
+                    {payment.note}
+                  </p>
+                )}
               </div>
 
-              <p className="mt-2 text-sm text-[#687167]">
-                ₱{payment.amount} · Ref:{" "}
-                {payment.reference}
-              </p>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    run(async () => {
-                      const { data, error } =
-                        await supabase.storage
-                          .from("session-receipts")
-                          .createSignedUrl(
-                            payment.receipt_path,
-                            300,
-                          );
-
-                      if (error) throw error;
-
-                      setReceipt(data.signedUrl);
-                    })
-                  }
+              <div className="flex shrink-0 items-center gap-2">
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold capitalize ${
+                    payment.status === "approved"
+                      ? "bg-[#e8f5d5] text-[#31541f]"
+                      : payment.status === "rejected"
+                        ? "bg-[#fce8e6] text-[#9a3027]"
+                        : "bg-[#edf4df] text-[#24412b]"
+                  }`}
                 >
-                  <CreditCard size={16} />
-                  View receipt
-                </button>
+                  {payment.status}
+                </span>
 
                 {payment.status === "pending" && (
                   <>
                     <button
                       type="button"
-                      className="primary"
+                      className="grid h-9 w-9 place-items-center rounded-lg bg-[#dcfa53] text-[#17231a] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={busy}
-                      onClick={() =>
-                        review(payment, true)
-                      }
+                      onClick={() => review(payment, true)}
+                      aria-label={`Approve payment from ${
+                        names[payment.user_id] || "player"
+                      }`}
+                      title="Approve payment"
                     >
-                      <Check size={16} />
-                      Approve slot
+                      <Check size={18} />
                     </button>
 
                     <button
                       type="button"
-                      className="outline"
+                      className="grid h-9 w-9 place-items-center rounded-lg border border-[#dce3d5] bg-white text-[#243126] transition hover:bg-[#f5f7ef] disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={busy}
-                      onClick={() =>
-                        review(payment, false)
-                      }
+                      onClick={() => review(payment, false)}
+                      aria-label={`Reject payment from ${
+                        names[payment.user_id] || "player"
+                      }`}
+                      title="Reject payment"
                     >
-                      Reject
+                      <X size={18} />
                     </button>
                   </>
                 )}
-              </div>
 
-              {payment.note && (
-                <p className="mt-2 text-sm text-[#687167]">
-                  {payment.note}
-                </p>
-              )}
+                <button
+                  type="button"
+                  className="grid h-9 w-9 place-items-center rounded-lg border border-[#dce3d5] bg-white text-[#243126] transition hover:bg-[#f5f7ef] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={busy}
+                  onClick={() =>
+                    run(async () => {
+                      const { data, error: receiptError } =
+                        await supabase.storage
+                          .from("session-receipts")
+                          .createSignedUrl(payment.receipt_path, 300);
+
+                      if (receiptError) throw receiptError;
+
+                      setReceipt(data.signedUrl);
+                    })
+                  }
+                  aria-label="View payment receipt"
+                  title="View receipt"
+                >
+                  <Eye size={18} />
+                </button>
+              </div>
             </article>
           ))}
 
           {!loading && !payments.length && (
-            <p className="muted">
-              No payment submissions yet.
-            </p>
+            <p className="muted">No payment submissions yet.</p>
           )}
         </div>
       )}

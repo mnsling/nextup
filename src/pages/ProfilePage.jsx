@@ -23,6 +23,22 @@ const initialForm = {
   avatar_path: null,
 };
 
+const PROFILE_CITIES = [
+  "Davao City",
+  "Mati City",
+  "Tagum City",
+  "Panabo City",
+  "Samal Island",
+  "Digos City",
+  "Kidapawan City",
+  "General Santos City",
+  "Cagayan de Oro City",
+  "Cebu City",
+  "Iloilo City",
+  "Metro Manila",
+  "Other",
+];
+
 const emptyStats = {
   played: 0,
   wins: 0,
@@ -50,6 +66,8 @@ export function ProfilePage({
   const [resultsError, setResultsError] = useState("");
   const [history, setHistory] = useState([]);
   const [stats, setStats] = useState(emptyStats);
+  const [customCity, setCustomCity] = useState("");
+  const [useCustomCity, setUseCustomCity] = useState(false);
 
   useEffect(() => {
     if (!pendingPhoto) {
@@ -103,14 +121,22 @@ export function ProfilePage({
           setProfileError(
             profile.error?.message || "Your profile was not found.",
           );
+
         } else {
+          const loadedCity = profile.data.city || "";
+          const isKnownCity = PROFILE_CITIES.includes(loadedCity);
+
           setForm({
             ...initialForm,
             ...profile.data,
           });
 
+          setUseCustomCity(Boolean(loadedCity) && !isKnownCity);
+          setCustomCity(isKnownCity ? "" : loadedCity);
+
           setSavedName(profile.data.full_name || "Player");
         }
+
 
         if (matches.error || summary.error) {
           setResultsError(
@@ -269,8 +295,8 @@ export function ProfilePage({
 
   const winRate = Number(stats.played)
     ? Math.round(
-        (Number(stats.wins) / Number(stats.played)) * 100,
-      )
+      (Number(stats.wins) / Number(stats.played)) * 100,
+    )
     : 0;
 
   const photo = previewUrl || avatarUrl(form.avatar_path);
@@ -372,17 +398,62 @@ export function ProfilePage({
               />
             </label>
 
+
             <label>
               City or area
-              <input
+
+              <BrandSelect
                 name="city"
-                value={form.city}
-                onChange={updateField}
-                placeholder="Davao City"
-                maxLength={80}
+                value={useCustomCity ? "Other" : form.city}
+                onChange={(event) => {
+                  const value = event.target.value;
+
+                  if (value === "Other") {
+                    setUseCustomCity(true);
+                    setForm((previous) => ({
+                      ...previous,
+                      city: customCity,
+                    }));
+                  } else {
+                    setUseCustomCity(false);
+                    setCustomCity("");
+                    setForm((previous) => ({
+                      ...previous,
+                      city: value,
+                    }));
+                  }
+                }}
                 disabled={disabled}
                 className="!w-full min-w-0"
-              />
+              >
+                <option value="">Select your city or area</option>
+
+                {PROFILE_CITIES.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </BrandSelect>
+
+              {useCustomCity && (
+                <input
+                  type="text"
+                  value={customCity}
+                  placeholder="Enter your city or area"
+                  maxLength={80}
+                  disabled={disabled}
+                  required
+                  className="!mt-2 !w-full min-w-0"
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setCustomCity(value);
+                    setForm((previous) => ({
+                      ...previous,
+                      city: value,
+                    }));
+                  }}
+                />
+              )}
             </label>
 
             <label>

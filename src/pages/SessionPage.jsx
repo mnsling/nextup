@@ -239,11 +239,6 @@ export function SessionPage({
                       : "Join this session"}{" "}
                 <ArrowUpRight size={18} />
               </button>
-
-              <p className="fine">
-                Session fees go directly to the host.
-                NEXTUP plan payments are separate.
-              </p>
             </div>
 
             <button

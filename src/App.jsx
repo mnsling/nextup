@@ -7,7 +7,6 @@ import {
 } from "./hooks/useSessionClock";
 import { configured, supabase } from "./lib/supabase";
 import { demoClubs, demoSessions } from "./data/demo";
-import { plans } from "./data/plans";
 import { AppShell } from "./components/AppShell";
 import { MobileMenu } from "./components/MobileMenu";
 import { Toast } from "./components/Toast";
@@ -16,7 +15,6 @@ import { SessionPaymentModal } from "./components/SessionPayments";
 import { DiscoverPage } from "./pages/DiscoverPage";
 import { ClubsPage } from "./pages/ClubsPage";
 import { MyGamesPage } from "./pages/MyGamesPage";
-import { PricingPage } from "./pages/PricingPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SessionPage } from "./pages/SessionPage";
 import { ClubPage } from "./pages/ClubPage";
@@ -44,8 +42,6 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [busy, setBusy] = useState(false);
-  const [qrReady, setQrReady] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState(plans[1]);
   const [paymentGame, setPaymentGame] = useState(null);
 
   const demo = !configured;
@@ -62,26 +58,47 @@ export default function App() {
   useEffect(() => {
     if (!supabase) return;
 
+    let active = true;
+    let refreshPending = false;
+
+    const refreshSessions = async () => {
+      if (refreshPending) return;
+      refreshPending = true;
+
+      try {
+        const { data, error } = await supabase
+          .from("sessions")
+          .select(
+            "id,title,club_id,host_id,location,maps_url,starts_at,ends_at,capacity,courts,skill_level,fee,status,session_type,match_format,gcash_qr_path",
+          )
+          .order("starts_at", { ascending: true });
+
+        if (active && !error) setSessions(data || []);
+        if (error) console.error("Unable to refresh sessions:", error.message);
+      } finally {
+        refreshPending = false;
+      }
+    };
+
     const channel = supabase
       .channel("session-list-status")
       .on(
         "postgres_changes",
         {
-          event: "UPDATE",
+          event: "*",
           schema: "public",
           table: "sessions",
         },
-        ({ new: updated }) => {
-          setSessions((current) =>
-            current.map((item) =>
-              item.id === updated.id ? { ...item, ...updated } : item,
-            ),
-          );
-        },
+        refreshSessions,
       )
       .subscribe();
 
+    const handleFocus = () => refreshSessions();
+    window.addEventListener("focus", handleFocus);
+
     return () => {
+      active = false;
+      window.removeEventListener("focus", handleFocus);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -349,11 +366,7 @@ export default function App() {
       return;
     }
 
-    if (
-      !demo &&
-      Number(game.fee) > 0 &&
-      auth.id !== game.host_id
-    ) {
+    if (!demo && Number(game.fee) > 0 && auth.id !== game.host_id) {
       setPaymentGame(game);
       return;
     }
@@ -509,12 +522,16 @@ export default function App() {
       return;
     }
 
+
     const selectedClubId = String(form.get("club_id") || "") || null;
 
-    if (!selectedClubId && Number(form.get("courts")) > 2) {
-      flash("Friendly games support up to 2 courts.");
+    const courts = Number(form.get("courts"));
+
+    if (!Number.isInteger(courts) || courts < 1 || courts > 32) {
+      flash("Courts must be between 1 and 32.");
       return;
     }
+
 
     const sessionType = String(form.get("session_type") || "open_play");
     const matchFormat = String(form.get("match_format") || "doubles");
@@ -535,19 +552,26 @@ export default function App() {
       return;
     }
 
+    const fee = Number(form.get("fee"));
+
+    if (!Number.isFinite(fee) || fee <= 0) {
+      flash("A session fee is required. Enter an amount greater than ₱0.");
+      return;
+    }
+
     const row = {
       session_type: sessionType,
       match_format: matchFormat,
       title: String(form.get("title")),
       club_id: selectedClubId,
+      courts,
       location: String(form.get("location")),
       maps_url: String(form.get("maps_url")),
       starts_at: start.toISOString(),
       ends_at: end.toISOString(),
       capacity: Number(form.get("capacity")),
-      courts: Number(form.get("courts")),
       skill_level: String(form.get("skill_level")),
-      fee: Number(form.get("fee")),
+      fee,
       host_id: auth.id,
       status: "open",
     };
@@ -571,73 +595,18 @@ export default function App() {
     if (error) {
       flash(error.message);
     } else {
-      setSessions([data, ...sessions]);
+      setSessions((current) => [
+        data,
+        ...current.filter((item) => item.id !== data.id),
+      ]);
+      setSearch("");
+      setFilter("All");
+      setPage("discover");
+      setSession(null);
+      setClub(null);
+      nav("/");
       setModal("");
       flash("Session created. Registration is open.");
-    }
-  };
-
-  const pay = async (event) => {
-    event.preventDefault();
-
-    if (!requireAuth()) return;
-
-    if (demo) {
-      flash(
-        "Preview request created. Add Supabase and your real GCash QR to accept payments.",
-      );
-      setModal("");
-      return;
-    }
-
-    const form = new FormData(event.currentTarget);
-    const file = form.get("receipt");
-
-    if (!(file instanceof File) || !file.size) {
-      return flash("Upload your GCash payment receipt.");
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      return flash("Receipt must be under 5 MB.");
-    }
-
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      return flash("Upload a JPG, PNG, or WebP receipt.");
-    }
-
-    setBusy(true);
-
-    const path = `${auth.id}/${crypto.randomUUID()}.${file.type.split("/")[1]}`;
-
-    const uploaded = await supabase.storage
-      .from("payment-receipts")
-      .upload(path, file, { contentType: file.type });
-
-    if (uploaded.error) {
-      flash(uploaded.error.message);
-      setBusy(false);
-      return;
-    }
-
-    const result = await supabase.from("payment_requests").insert({
-      user_id: auth.id,
-      club_id: form.get("club_id"),
-      plan_id: selectedPlan.id,
-      amount: selectedPlan.id === "club" ? 399 : 999,
-      reference: String(form.get("reference")).trim(),
-      receipt_path: path,
-      status: "pending",
-    });
-
-    setBusy(false);
-
-    if (result.error) {
-      flash(result.error.message);
-    } else {
-      flash(
-        "Payment submitted for review. Access stays on Starter until verified.",
-      );
-      setModal("");
     }
   };
 
@@ -821,14 +790,7 @@ export default function App() {
             flash={flash}
             onProfileSaved={setNavbarProfile}
           />
-        ) : (
-          <PricingPage
-            plans={plans}
-            go={go}
-            setSelectedPlan={setSelectedPlan}
-            setModal={setModal}
-          />
-        )}
+        ) : null}
       </AppShell>
 
       {paymentGame && auth && (
@@ -840,10 +802,9 @@ export default function App() {
         />
       )}
 
-
-
       <MobileMenu menu={menu} setMenu={setMenu} go={go} />
       <Toast message={message} setMessage={setMessage} />
+
       <ModalRoot
         modal={modal}
         setModal={setModal}
@@ -853,11 +814,6 @@ export default function App() {
         createClub={createClub}
         createSession={createSession}
         hostClubId={hostClubId}
-        pay={pay}
-        busy={busy}
-        qrReady={qrReady}
-        setQrReady={setQrReady}
-        selectedPlan={selectedPlan}
         clubs={clubs}
       />
     </>

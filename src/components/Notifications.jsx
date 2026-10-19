@@ -66,7 +66,12 @@ export function Notifications({ auth, onOpenSession }) {
         }
 
         if (alive && current === request) {
-          setItems(list.data || []);
+          // Player-join notifications are intentionally not shown. A host's
+          // payment decision is the notification the player needs to receive.
+          const visibleItems = (list.data || []).filter(
+            (item) => item.kind !== "session_player_joined",
+          );
+          setItems(visibleItems);
           setUnread(count.count || 0);
           setError("");
         }
@@ -152,7 +157,11 @@ export function Notifications({ auth, onOpenSession }) {
       setVersion((value) => value + 1);
 
       if (item) {
-        await onOpenSession(item.session_id);
+        // Session/payment notifications can open their related session.
+        // Club notifications simply mark as read and close the panel.
+        if (item.session_id) {
+          await onOpenSession?.(item.session_id);
+        }
         setOpen(false);
       }
     } catch (e) {
@@ -180,7 +189,10 @@ export function Notifications({ auth, onOpenSession }) {
         <Bell size={19} />
 
         {unread > 0 && (
-          <span className="notification-badge">
+          <span
+            className="notification-badge"
+            style={{ background: "#e53935", color: "#ffffff" }}
+          >
             {unread > 99 ? "99+" : unread}
           </span>
         )}
@@ -227,15 +239,50 @@ export function Notifications({ auth, onOpenSession }) {
                 </p>
 
                 <p className="notification-empty-description">
-                  Club sessions and payment updates
-                  will appear here.
+                  Payment decisions, session removals, and club updates will appear here.
                 </p>
               </div>
             )}
 
             {items.map((item) => {
-              const isPayment =
-                item.kind === "payment_submitted";
+              const isPayment = [
+                "payment_submitted",
+                "session_payment_approved",
+                "session_payment_rejected",
+              ].includes(item.kind);
+              const isPaymentApproved = item.kind === "session_payment_approved";
+              const isPaymentRejected = item.kind === "session_payment_rejected";
+              const isSessionRemoved = item.kind === "session_player_removed";
+              const isClubCreated = item.kind === "club_created";
+              const isClubMemberJoined = item.kind === "club_member_joined";
+
+              const notificationTitle = isPaymentApproved
+                ? "Session payment approved"
+                : isPaymentRejected
+                  ? "Session payment rejected"
+                  : isSessionRemoved
+                      ? "You were removed from a session"
+                      : item.kind === "payment_submitted"
+                        ? "Payment awaiting verification"
+                        : isClubCreated
+                          ? "New club created"
+                          : isClubMemberJoined
+                            ? "Someone joined your club"
+                            : item.club_name || "New session";
+
+              const notificationMessage = isPaymentApproved
+                ? `Your payment for ${item.session_title || "a session"} was approved.`
+                : isPaymentRejected
+                  ? `Your payment for ${item.session_title || "a session"} was rejected. ${item.actor_name ? `Note: ${item.actor_name}` : "You can contact the host for details."}`
+                  : isSessionRemoved
+                      ? `The host removed you from ${item.session_title || "a session"}. You can join again if registration is open.`
+                      : item.kind === "payment_submitted"
+                        ? `${item.actor_name || "A player"} submitted a receipt for ${item.session_title || "a session"}`
+                        : isClubCreated
+                          ? `${item.actor_name || "A player"} created ${item.club_name || "a new club"}`
+                          : isClubMemberJoined
+                            ? `${item.actor_name || "A player"} joined ${item.club_name || "your club"}`
+                            : `New session: ${item.session_title || "Pickleball session"}`;
 
               return (
                 <button
@@ -259,19 +306,11 @@ export function Notifications({ auth, onOpenSession }) {
 
                   <span className="notification-item-content">
                     <span className="notification-item-title">
-                      {isPayment
-                        ? "Payment awaiting verification"
-                        : item.club_name}
+                      {notificationTitle}
                     </span>
 
                     <span className="notification-item-message">
-                      {isPayment
-                        ? `${
-                            item.actor_name || "A player"
-                          } submitted a receipt for ${
-                            item.session_title
-                          }`
-                        : `New session: ${item.session_title}`}
+                      {notificationMessage}
                     </span>
 
                     <span className="notification-item-date">

@@ -164,8 +164,8 @@ export function ConfirmedMembers({
             Their active match will end without a ranked result.
             Finished results remain saved.
             {target.user_id === game.host_id
-              ? " Your host controls stay available. You are allowed to rejoin while registration is open."
-              : " Removed players are blocked from rejoining."}
+              ? " Your host controls stay available. You can rejoin while registration is open."
+              : " The player can join again later if registration is open and a spot is available."}
           </p>
 
           <label className="mt-3 block text-sm font-medium">

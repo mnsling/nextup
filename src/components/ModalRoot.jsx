@@ -1,5 +1,6 @@
+
 import React, { useEffect, useState } from "react";
-import { ArrowUpRight, X, LogOut, CreditCard } from "lucide-react";
+import { ArrowUpRight, X, LogOut } from "lucide-react";
 import { HourlySlotPicker } from "./HourlySlotPicker";
 import { AuthForm } from "./AuthForm";
 import { BrandSelect } from "./BrandSelect";
@@ -14,11 +15,6 @@ export function ModalRoot({
   auth,
   createClub,
   createSession,
-  pay,
-  busy,
-  qrReady,
-  setQrReady,
-  selectedPlan,
   clubs,
   hostClubId = "",
 }) {
@@ -220,8 +216,10 @@ export function ModalRoot({
                 Skill level
                 <BrandSelect name="skill_level">
                   <option>All levels</option>
+                  <option>Recreational</option>
                   <option>Beginner friendly</option>
                   <option>Intermediate</option>
+                  <option>Advanced</option>
                 </BrandSelect>
               </label>
 
@@ -269,12 +267,13 @@ export function ModalRoot({
                 </label>
 
                 <label>
-                  Venue fee (₱)
+                  Required session fee (₱)
                   <input
                     type="number"
                     name="fee"
-                    min="0"
-                    defaultValue="0"
+                    min="1"
+                    step="1"
+                    defaultValue=""
                     required
                   />
                 </label>
@@ -283,93 +282,6 @@ export function ModalRoot({
               <button className="primary full">
                 Publish game <ArrowUpRight size={17} />
               </button>
-            </form>
-          </>
-        )}
-
-        {modal === "payment" && (
-          <>
-            <span className="eyebrow">
-              NEXTUP {selectedPlan.name.toUpperCase()}
-            </span>
-
-            <h2>
-              Pay ₱{selectedPlan.id === "club" ? "399" : "999"} via GCash.
-            </h2>
-
-            <p className="muted">
-              One month of access, no automatic renewal. Your club activates
-              after the organizer verifies payment.
-            </p>
-
-            <div className="qr-placeholder">
-              <img
-                src="/assets/gcash-qr.png"
-                alt="Your GCash merchant QR"
-                onLoad={() => setQrReady(true)}
-                onError={(event) => {
-                  setQrReady(false);
-                  event.currentTarget.style.display = "none";
-                }}
-              />
-
-              <span>
-                <CreditCard size={28} />
-                Place your real GCash merchant QR at
-                <br />
-                <b>public/assets/gcash-qr.png</b>
-              </span>
-            </div>
-
-            <form className="form" onSubmit={pay}>
-              <label>
-                Club
-                <BrandSelect name="club_id" required>
-                  <option value="">Choose your club</option>
-
-                  {clubs.map((club) => (
-                    <option value={club.id} key={club.id}>
-                      {club.name}
-                    </option>
-                  ))}
-                </BrandSelect>
-              </label>
-
-              <label>
-                GCash reference number
-                <input
-                  name="reference"
-                  placeholder="Transaction reference"
-                  required
-                  minLength="6"
-                  maxLength="80"
-                />
-              </label>
-
-              <label>
-                Payment receipt
-                <input
-                  type="file"
-                  name="receipt"
-                  accept="image/png,image/jpeg,image/webp"
-                  required
-                />
-              </label>
-
-              <button
-                disabled={busy || demo || !qrReady}
-                className="primary full"
-              >
-                {busy ? "Submitting…" : "Submit payment for review"}
-                <ArrowUpRight size={17} />
-              </button>
-
-              {(demo || !qrReady) && (
-                <p className="fine">
-                  Payment submission opens after you add Supabase
-                  credentials and your real GCash QR.
-                </p>
-              )}
             </form>
           </>
         )}
